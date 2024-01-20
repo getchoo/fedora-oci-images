@@ -1,0 +1,103 @@
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        required: true
+        type: string
+      containerfile:
+        description: containerfile to build
+        required: true
+        type: string
+      context:
+        required: true
+        type: string
+      extra_tags:
+        description: extra tags to apply to image
+        required: true
+        type: string
+      build_args:
+        required: true
+        type: string
+    secrets:
+      akmods_key:
+        description: private akmods key for signing
+        required: false
+
+env:
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  build:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=ref,event=pr
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+
+      - name: Get akmods signing key
+        if: github.event_name != 'pull_request'
+        env:
+          AKMODS_KEY: ${{ secrets.akmods_key }}
+        run: |
+          echo "$AKMODS_KEY" > akmods/certs/private_key.priv
+
+      - name: Build image
+        id: build
+        uses: redhat-actions/buildah-build@v2
+        with:
+          containerfiles: |
+            ${{ inputs.containerfile }}
+          image: ${{ inputs.image_name }}
+          context: ${{ inputs.context }}
+          tags: |
+            ${{ steps.metadata.outputs.tags }}
+            ${{ inputs.extra_tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: ${{ inputs.build_args }}
+
+      - name: Login to registry
+        if: github.event_name != 'pull_request'
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Push to registry
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build.outputs.image }}
+          tags: ${{ steps.build.outputs.tags }}
+          registry: ${{ env.REGISTRY }}
+          extra-args: |
+            --disable-content-trust
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS: ${{ steps.build.outputs.tags }}
+        run: |
+          images=()
+          for tag in ${TAGS}; do
+            images+=("${tag}@${DIGEST}")
+          done
+          cosign sign --yes "${images[@]}"
