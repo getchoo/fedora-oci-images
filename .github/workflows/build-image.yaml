@@ -95,9 +95,10 @@ jobs:
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
           TAGS: ${{ steps.build.outputs.tags }}
+          IMAGE_NAME: ${{ inputs.image_name }}
         run: |
           images=()
           for tag in ${TAGS}; do
-            images+=("${tag}@${DIGEST}")
+            images+=("${REGISTRY}/${IMAGE_NAME}:${tag}@${DIGEST}")
           done
           cosign sign --yes "${images[@]}"
