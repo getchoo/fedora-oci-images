@@ -1,0 +1,305 @@
+name: Build Images
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  akmods:
+    name: Akmods Image
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+
+    env:
+      IMAGE_NAME: akmods
+      FEDORA_VERSION: 39
+      NVIDIA_VERSION: 535
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=ref,event=pr
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+
+      - name: Generate extra tags
+        id: extra-tags 
+        run: |
+          timestamp="$(date +%Y%m%d)"
+          tag="$IMAGE_NAME:$FEDORA_VERSION-$NVIDIA_VERSION"
+          tags=("$tag" "$tag-$timestamp")
+          echo "tags=${tags[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Get akmods signing key
+        if: github.event_name != 'pull_request'
+        env:
+          AKMODS_KEY: ${{ secrets.AKMODS_KEY }}
+        run: |
+          echo "$AKMODS_KEY" > akmods/certs/private_key.priv
+
+      - name: Build image
+        id: build
+        uses: redhat-actions/buildah-build@v2
+        with:
+          containerfiles: |
+            ./akmods/Containerfile
+          image: ${{ env.IMAGE_NAME }}
+          context: ./akmods
+          tags: |
+            ${{ steps.metadata.outputs.tags }}
+            ${{ steps.extra-tags.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            FEDORA_VERSION=${{ env.FEDORA_VERSION }}
+            NVIDIA_VERSION=${{ env.NVIDIA_VERSION }}
+
+      - name: Push to registry
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build.outputs.image }}
+          tags: ${{ steps.build.outputs.tags }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+          extra-args: |
+            --disable-content-trust
+
+      - name: Login to registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Install cosign
+        if: github.event_name == 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        if: github.event_name == 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS: ${{ steps.build.outputs.tags }}
+        run: |
+          images=()
+          for tag in "${TAGS[@]}"; do
+            images+=("$tag@$DIGEST")
+          done
+          cosign sign --yes "${images[@]}"
+
+  base:
+    name: Base Image
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: getchblue
+            fedora_version: 39
+            image_flavor: silverblue
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ matrix.image_name }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=ref,event=pr
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+
+      - name: Generate extra tags
+        id: extra-tags 
+        env:
+          IMAGE_NAME: ${{ matrix.image_name }}
+          FEDORA_VERSION: ${{ matrix.fedora_version }}
+        run: |
+          timestamp="$(date +%Y%m%d)"
+          tag="$IMAGE_NAME:$FEDORA_VERSION"
+          tags=("$tag" "$tag-$timestamp")
+          echo "tags=${tags[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        id: build
+        uses: redhat-actions/buildah-build@v2
+        with:
+          containerfiles: |
+            ./Containerfile
+          image: ${{ matrix.image_name }}
+          context: .
+          tags: |
+            ${{ steps.metadata.outputs.tags }}
+            ${{ steps.extra-tags.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            FEDORA_VERSION=${{ matrix.fedora_version }}
+            IMAGE_FLAVOR=${{ matrix.image_flavor }}
+
+      - name: Push to registry
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build.outputs.image }}
+          tags: ${{ steps.build.outputs.tags }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+          extra-args: |
+            --disable-content-trust
+
+      - name: Login to registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Install cosign
+        if: github.event_name == 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        if: github.event_name == 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS: ${{ steps.build.outputs.tags }}
+        run: |
+          images=()
+          for tag in "${TAGS[@]}"; do
+            images+=("$tag@$DIGEST")
+          done
+          cosign sign --yes "${images[@]}"
+
+  nvidia:
+    name: NVIDIA Image
+    runs-on: ubuntu-latest
+    needs: [akmods, base]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: getchblue-nvidia
+            fedora_version: 39
+            image_flavor: getchblue 
+            nvidia_version: 535
+
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ matrix.image_name }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=ref,event=pr
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+
+      - name: Generate extra tags
+        id: extra-tags 
+        env:
+          IMAGE_NAME: ${{ matrix.image_name }}
+          FEDORA_VERSION: ${{ matrix.fedora_version }}
+          NVIDIA_VERSION: ${{ matrix.nvidia_version }}
+        run: |
+          timestamp="$(date +%Y%m%d)"
+          tag="$IMAGE_NAME:$FEDORA_VERSION-$NVIDIA_VERSION"
+          tags=("$tag" "$tag-$timestamp")
+          echo "tags=${tags[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        id: build
+        uses: redhat-actions/buildah-build@v2
+        with:
+          containerfiles: |
+            ./nvidia/Containerfile
+          image: ${{ matrix.image_name }}
+          context: ./nvidia
+          tags: |
+            ${{ steps.metadata.outputs.tags }}
+            ${{ steps.extra-tags.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            FEDORA_VERSION=${{ matrix.fedora_version }}
+            IMAGE_FLAVOR=${{ matrix.image_flavor }}
+
+      - name: Push to registry
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build.outputs.image }}
+          tags: ${{ steps.build.outputs.tags }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+          extra-args: |
+            --disable-content-trust
+
+      - name: Login to registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Install cosign
+        if: github.event_name == 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        if: github.event_name == 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS: ${{ steps.build.outputs.tags }}
+        run: |
+          images=()
+          for tag in "${TAGS[@]}"; do
+            images+=("$tag@$DIGEST")
+          done
+          cosign sign --yes "${images[@]}"
