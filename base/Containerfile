@@ -47,7 +47,7 @@ RUN cd /etc/yum.repos.d/ && \
 	systemctl enable tailscaled
 
 # install fedora rpms
-RUN readarray -td '' pkgs < <(/tmp/yq '.install[]' /tmp/packages.yaml) && \
+RUN export pkgs=($(/tmp/yq '.install[]' /tmp/packages.yaml)) && \
 	rpm-ostree install "${pkgs[@]}"
 
 # enable automatic updates
