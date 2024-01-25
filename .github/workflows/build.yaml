@@ -13,7 +13,7 @@ env:
 
 jobs:
   akmods:
-    name: Akmods Image
+    name: Akmods Layer
 
     permissions:
       contents: read
@@ -26,7 +26,7 @@ jobs:
       containerfile: ./akmods/Containerfile
       context: ./akmods
       extra_tags: |
-        39-535
+        type=raw,value=39-535
       build_args: |
         FEDORA_VERSION=39
         NVIDIA_VERSION=535
@@ -53,16 +53,16 @@ jobs:
     uses: ./.github/workflows/build-image.yaml
     with:
       image_name: ${{ matrix.image_name }}
-      containerfile: ./Containerfile
-      context: .
+      containerfile: ./base/Containerfile
+      context: ./base
       extra_tags: |
-        ${{ matrix.fedora_version }}
+        type=raw,value=${{ matrix.fedora_version }}
       build_args: |
         FEDORA_VERSION=${{ matrix.fedora_version }}
         IMAGE_FLAVOR=${{ matrix.image_flavor }}
 
   config:
-    name: Config layer
+    name: Config layers
 
     permissions:
       contents: read
@@ -80,7 +80,7 @@ jobs:
       containerfile: ./config/Containerfile
       context: ./config
       extra_tags: |
-        ${{ matrix.fedora_version }}
+        type=raw,value=${{ matrix.fedora_version }}
       build_args: |
         FEDORA_VERSION=${{ matrix.fedora_version }}
 
@@ -107,7 +107,7 @@ jobs:
       containerfile: ./nvidia/Containerfile
       context: ./nvidia
       extra_tags: |
-        ${{ matrix.fedora_version }}-${{ matrix.nvidia_version }}
+        type=raw,value=${{ matrix.fedora_version }}-${{ matrix.nvidia_version }}
       build_args: |
         FEDORA_VERSION=${{ matrix.fedora_version }}
         IMAGE_FLAVOR=${{ matrix.image_flavor }}
