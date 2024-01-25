@@ -32,19 +32,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Extract metadata
         id: metadata
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@dbef88086f6cef02e264edb7dbf63250c17cef6c # v5.5.0
         with:
-          images: |
-            ${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ inputs.image_name }}
           tags: |
             type=sha
             type=ref,event=branch
             type=ref,event=pr
             type=schedule,pattern={{date 'YYYYMMDD'}}
+            ${{ inputs.extra_tags }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
       - name: Get akmods signing key
         if: github.event_name != 'pull_request'
@@ -53,52 +56,39 @@ jobs:
         run: |
           echo "$AKMODS_KEY" > akmods/certs/private_key.priv
 
-      - name: Build image
-        id: build
-        uses: redhat-actions/buildah-build@v2
-        with:
-          containerfiles: |
-            ${{ inputs.containerfile }}
-          image: ${{ inputs.image_name }}
-          context: ${{ inputs.context }}
-          tags: |
-            ${{ steps.metadata.outputs.tags }}
-            ${{ inputs.extra_tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
-          build-args: ${{ inputs.build_args }}
-
       - name: Login to registry
         if: github.event_name != 'pull_request'
-        uses: redhat-actions/podman-login@v1
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Push to registry
-        id: push
-        if: github.event_name != 'pull_request'
-        uses: redhat-actions/push-to-registry@v2
+      - name: Build image
+        id: build
+        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
         with:
-          image: ${{ steps.build.outputs.image }}
-          tags: ${{ steps.build.outputs.tags }}
-          registry: ${{ env.REGISTRY }}
-          extra-args: |
-            --disable-content-trust
+          context: ${{ inputs.context }}
+          file: ${{ inputs.containerfile }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: ${{ inputs.build_args }}
+          push: ${{ github.event_name != 'pull_request' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Install cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@9614fae9e5c5eddabb09f90a270fcb487c9f7149 # v3.3.0
 
       - name: Sign image
         if: github.event_name != 'pull_request'
         env:
-          DIGEST: ${{ steps.push.outputs.digest }}
-          TAGS: ${{ steps.build.outputs.tags }}
-          IMAGE_NAME: ${{ inputs.image_name }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.metadata.outputs.tags }}
         run: |
           images=()
           for tag in ${TAGS}; do
-            images+=("${REGISTRY}/${IMAGE_NAME}:${tag}@${DIGEST}")
+            images+=("${tag}@${DIGEST}")
           done
           cosign sign --yes "${images[@]}"
