@@ -1,13 +1,16 @@
 ARG IMAGE_FLAVOR="${IMAGE_FLAVOR:-getchblue}"
 ARG BASE_IMAGE="ghcr.io/getchoo/${IMAGE_FLAVOR}"
 ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
-
-FROM ${BASE_IMAGE}:${FEDORA_VERSION}
-ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
 ARG NVIDIA_VERSION="${NVIDIA_VERSION:-535}"
 
+FROM ghcr.io/getchoo/akmods:${FEDORA_VERSION}-${NVIDIA_VERSION} as akmods
+
+FROM ${BASE_IMAGE}:${FEDORA_VERSION} as builder
+ARG FEDORA_VERSION
+ARG NVIDIA_VERSION
+
 # copy our signed artifacts over
-COPY --from=ghcr.io/getchoo/akmods:${FEDORA_VERSION}-${NVIDIA_VERSION} /rpms /tmp/akmods
+COPY --from=akmods /rpms /tmp/akmods
 
 # install our pub cert to import, along with signed kmods
 RUN rpm-ostree install \

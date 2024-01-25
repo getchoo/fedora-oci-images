@@ -23,5 +23,5 @@ RUN rpmbuild -ba \
 	/tmp/specs/container-policy.spec && \
 	cp /tmp/container-policy/rpmbuild/RPMS/noarch/getchoo-container-policy*.rpm /var/cache/rpms/container-policy/
 
-FROM scratch
+FROM scratch as rpms
 COPY --from=builder /var/cache/rpms/container-policy /rpms/container-policy
