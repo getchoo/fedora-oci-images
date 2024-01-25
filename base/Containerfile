@@ -2,9 +2,9 @@ ARG IMAGE_FLAVOR="${IMAGE_FLAVOR:-silverblue}"
 ARG BASE_IMAGE="quay.io/fedora-ostree-desktops/${IMAGE_FLAVOR}"
 ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
 
+FROM ghcr.io/getchoo/config:${FEDORA_VERSION} as config
 FROM ${BASE_IMAGE}:${FEDORA_VERSION}
-ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
-
+ARG FEDORA_VERSION
 
 COPY initial_setup.sh /usr/bin/
 COPY packages.yaml /tmp/
@@ -41,7 +41,7 @@ RUN rpm-ostree override remove \
 
 # install third party packages & repos
 RUN cd /etc/yum.repos.d/ && \
-	curl -LO https://pkgs.tailscale.com/stable/fedora/tailscale.repo \
+	curl -LO https://pkgs.tailscale.com/stable/fedora/tailscale.repo && \
 	echo -e \
 	"[code]\n" \
 	"name=Visual Studio Code\n" \
@@ -61,8 +61,8 @@ RUN readarray -td '' pkgs < <(/tmp/yq '.install[]' /tmp/packages.yaml) && \
 # enable automatic updates
 RUN sed -i 's/#AutomaticUpdatePolicy.*/AutomaticUpdatePolicy=stage/' /etc/rpm-ostreed.conf
 
-# bring in config layer
-COPY --from=ghcr.io/getchoo/config:${FEDORA_VERSION} /rpms /tmp/config
+# install container policy
+COPY --from=config /rpms /tmp/config
 RUN rpm-ostree install /tmp/config/container-policy/getchoo-container-policy*.rpm
 
 
