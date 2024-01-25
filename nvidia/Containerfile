@@ -2,12 +2,20 @@ ARG IMAGE_FLAVOR="${IMAGE_FLAVOR:-getchblue}"
 ARG BASE_IMAGE="ghcr.io/getchoo/${IMAGE_FLAVOR}"
 ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
 
-FROM ${BASE_IMAGE}:${FEDORA_VERSION} as builder
+FROM ${BASE_IMAGE}:${FEDORA_VERSION}
 ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
 ARG NVIDIA_VERSION="${NVIDIA_VERSION:-535}"
 
-COPY install.sh /tmp/install.sh
+# copy our signed artifacts over
 COPY --from=ghcr.io/getchoo/akmods:${FEDORA_VERSION}-${NVIDIA_VERSION} /rpms /tmp/akmods
 
-RUN /tmp/install.sh ${NVIDIA_VERSION} && rpm-ostree cleanup -m && \
-	rm -rf /tmp/* /var/* && ostree container commit
+# install our pub cert to import, along with signed kmods
+RUN rpm-ostree install \
+	/tmp/akmods/akmods-cert/getchoo-akmods-cert*.rpm \
+	xorg-x11-drv-nvidia-{cuda,power}-${NVIDIA_VERSION}* \
+	nvidia-vaapi-driver \
+	/tmp/akmods/kmods/kmod-nvidia-*.rpm
+
+RUN rpm-ostree cleanup -m && \
+	rm -rf /tmp/* /var/* && \
+	ostree container commit

@@ -1,0 +1,14 @@
+install:
+  - chromium
+  - fish # > bash
+  # gnome stuff
+  - adw-gtk3-theme
+  - gnome-tweaks
+  - gnome-shell-extension-caffeine
+  - qadwaitadecorations-qt5
+  - qadwaitadecorations-qt6
+  # maybe one day these will be good on flatpak :p
+  - lutris
+  - mangohud
+  - steam
+remove: []
