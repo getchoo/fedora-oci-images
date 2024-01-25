@@ -35,6 +35,7 @@ jobs:
 
   base:
     name: Base Images
+    needs: [config]
 
     permissions:
       contents: read
@@ -59,6 +60,29 @@ jobs:
       build_args: |
         FEDORA_VERSION=${{ matrix.fedora_version }}
         IMAGE_FLAVOR=${{ matrix.image_flavor }}
+
+  config:
+    name: Config layer
+
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora_version: [39]
+
+    uses: ./.github/workflows/build-image.yaml
+    with:
+      image_name: config
+      containerfile: ./config/Containerfile
+      context: ./config
+      extra_tags: |
+        ${{ matrix.fedora_version }}
+      build_args: |
+        FEDORA_VERSION=${{ matrix.fedora_version }}
 
   nvidia:
     name: NVIDIA Images

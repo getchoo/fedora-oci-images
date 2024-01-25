@@ -58,7 +58,12 @@ RUN cd /etc/yum.repos.d/ && \
 RUN readarray -td '' pkgs < <(/tmp/yq '.install[]' /tmp/packages.yaml) && \
 	rpm-ostree install "${pkgs[@]}"
 
+# enable automatic updates
 RUN sed -i 's/#AutomaticUpdatePolicy.*/AutomaticUpdatePolicy=stage/' /etc/rpm-ostreed.conf
+
+# bring in config layer
+COPY --from=ghcr.io/getchoo/config:${FEDORA_VERSION} /rpms /tmp/config
+RUN rpm-ostree install /tmp/config/container-policy/getchoo-container-policy*.rpm
 
 
 RUN rpm-ostree cleanup -m && \
