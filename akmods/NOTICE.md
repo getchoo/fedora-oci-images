@@ -2,7 +2,7 @@
 
 The section uses code derived from ublue-os' [akmods](https://github.com/ublue-os/akmods) repository.
 Specifically `build-ublue-os-akmods-addons.sh`, `ublue-os-akmods-addons.spec`, `build-prep.sh`, and
-`build-kmod-nvidia.sh` were modified
+`build-kmod-nvidia.sh` were adapted into the Containerfile
 
 ```
                                  Apache License

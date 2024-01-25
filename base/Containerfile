@@ -1,0 +1,66 @@
+ARG IMAGE_FLAVOR="${IMAGE_FLAVOR:-silverblue}"
+ARG BASE_IMAGE="quay.io/fedora-ostree-desktops/${IMAGE_FLAVOR}"
+ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
+
+FROM ${BASE_IMAGE}:${FEDORA_VERSION}
+ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
+
+
+COPY initial_setup.sh /usr/bin/
+COPY packages.yaml /tmp/
+COPY --from=docker.io/mikefarah/yq /usr/bin/yq /tmp/
+
+# remove non-flatpak firefox
+RUN rpm-ostree override remove firefox firefox-langpacks
+
+# setup third party repos
+RUN rpm-ostree install \
+	https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm \
+	https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm
+
+# install software/hardware codecs
+RUN rpm-ostree override remove \
+	mesa-va-drivers \
+	libavcodec-free \
+	libavfilter-free \
+	libavformat-free \
+	libavutil-free \
+	libpostproc-free \
+	libswresample-free \
+	libswscale-free && \
+	rpm-ostree install \
+	mesa-va-drivers-freeworld \
+	mesa-vdpau-drivers-freeworld \
+	gstreamer1-plugin-libav \
+	gstreamer1-plugins-bad-free-extras \
+	gstreamer1-plugins-bad-freeworld \
+	gstreamer1-plugins-ugly \
+	gstreamer1-vaapi \
+	ffmpeg
+
+
+# install third party packages & repos
+RUN cd /etc/yum.repos.d/ && \
+	curl -LO https://pkgs.tailscale.com/stable/fedora/tailscale.repo \
+	echo -e '\
+	[code]\n\
+	name=Visual Studio Code\n\
+	baseurl=https://packages.microsoft.com/yumrepos/vscode\n\
+	enabled=1\n\
+	gpgcheck=1\n\
+	gpgkey=https://packages.microsoft.com/keys/microsoft.asc\
+	' > vscode.repo && \
+	rpm-ostree install code tailscale && \
+	systemctl enable tailscaled
+
+
+# install fedora rpms
+RUN readarray -td '' pkgs < <(/tmp/yq '.install[]' /tmp/packages.yaml) && \
+	rpm-ostree install "${pkgs[@]}"
+
+RUN sed -i 's/#AutomaticUpdatePolicy.*/AutomaticUpdatePolicy=stage/' /etc/rpm-ostreed.conf
+
+
+RUN rpm-ostree cleanup -m && \
+	rm -rf /tmp/* /var/* && \
+	ostree container commit
