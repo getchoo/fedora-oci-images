@@ -42,14 +42,14 @@ RUN rpm-ostree override remove \
 # install third party packages & repos
 RUN cd /etc/yum.repos.d/ && \
 	curl -LO https://pkgs.tailscale.com/stable/fedora/tailscale.repo \
-	echo -e '\
-	[code]\n\
-	name=Visual Studio Code\n\
-	baseurl=https://packages.microsoft.com/yumrepos/vscode\n\
-	enabled=1\n\
-	gpgcheck=1\n\
-	gpgkey=https://packages.microsoft.com/keys/microsoft.asc\
-	' > vscode.repo && \
+	echo -e \
+	"[code]\n" \
+	"name=Visual Studio Code\n" \
+	"baseurl=https://packages.microsoft.com/yumrepos/vscode\n" \
+	"enabled=1\n" \
+	"gpgcheck=1\n" \
+	"gpgkey=https://packages.microsoft.com/keys/microsoft.asc" \
+	> vscode.repo && \
 	rpm-ostree install code tailscale && \
 	systemctl enable tailscaled
 
