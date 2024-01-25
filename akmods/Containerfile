@@ -2,7 +2,7 @@ ARG BASE_IMAGE="quay.io/fedora-ostree-desktops/base"
 ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
 
 FROM ${BASE_IMAGE}:${FEDORA_VERSION} as builder
-ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
+ARG FEDORA_VERSION
 ARG NVIDIA_VERSION="${NVIDIA_VERSION:-535}"
 
 
@@ -68,5 +68,5 @@ done
 
 
 # send it off
-FROM scratch
+FROM scratch as rpms
 COPY --from=builder /var/cache/rpms /rpms

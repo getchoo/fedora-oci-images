@@ -2,13 +2,15 @@ ARG IMAGE_FLAVOR="${IMAGE_FLAVOR:-silverblue}"
 ARG BASE_IMAGE="quay.io/fedora-ostree-desktops/${IMAGE_FLAVOR}"
 ARG FEDORA_VERSION="${FEDORA_VERSION:-39}"
 
+FROM docker.io/mikefarah/yq as yq
 FROM ghcr.io/getchoo/config:${FEDORA_VERSION} as config
-FROM ${BASE_IMAGE}:${FEDORA_VERSION}
+
+FROM ${BASE_IMAGE}:${FEDORA_VERSION} as builder
 ARG FEDORA_VERSION
 
 COPY initial_setup.sh /usr/bin/
 COPY packages.yaml /tmp/
-COPY --from=docker.io/mikefarah/yq /usr/bin/yq /tmp/
+COPY --from=yq /usr/bin/yq /tmp/
 
 # remove non-flatpak firefox
 RUN rpm-ostree override remove firefox firefox-langpacks
