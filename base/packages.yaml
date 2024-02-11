@@ -7,8 +7,4 @@ install:
   - gnome-shell-extension-caffeine
   - qadwaitadecorations-qt5
   - qadwaitadecorations-qt6
-  # maybe one day these will be good on flatpak :p
-  - lutris
-  - mangohud
-  - steam
 remove: []
