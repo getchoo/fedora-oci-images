@@ -26,10 +26,10 @@ jobs:
       containerfile: ./akmods/Containerfile
       context: ./akmods
       extra_tags: |
-        type=raw,value=39-535
+        type=raw,value=39-550
       build_args: |
         FEDORA_VERSION=39
-        NVIDIA_VERSION=535
+        NVIDIA_VERSION=550
     secrets:
       akmods_key: ${{ secrets.AKMODS_KEY }}
 
@@ -99,7 +99,7 @@ jobs:
         include:
           - image_flavor: getchblue 
             fedora_version: 39
-            nvidia_version: 535
+            nvidia_version: 550
 
     uses: ./.github/workflows/build-image.yaml
     with:
