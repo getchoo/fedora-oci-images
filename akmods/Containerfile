@@ -45,10 +45,8 @@ RUN rpm-ostree install \
 
 # nvidia
 RUN export kernel_version="$(rpm -q kernel --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}')" && \
-	export akmod_version="$(basename "$(rpm -q akmod-nvidia --queryformat '%{VERSION}-%{RELEASE}')" ".fc${release%%.*}")" && \
-	akmods --force --kernels "$kernel_version" --kmod nvidia && \
-	if ! modinfo /usr/lib/modules/"$kernel_version"/extra/nvidia/nvidia{,-drm,-modeset,-peermem,-uvm}.ko.xz &> /dev/null; then \
-		cat /var/cache/akmods/nvidia/"$akmod_version"-for-"$kernel_version".failed.log && exit 1; \
+	if ! akmods --force --kernels "$kernel_version" --kmod nvidia; then \
+		cat /var/cache/akmods/nvidia/*"$kernel_version".failed.log && exit 1; \
 	fi
 
 
