@@ -12,6 +12,7 @@ COPY initial_setup.sh /usr/bin/
 COPY packages.yaml /tmp/
 COPY --from=yq /usr/bin/yq /tmp/
 
+
 # remove non-flatpak firefox
 RUN rpm-ostree override remove firefox firefox-langpacks
 
@@ -21,25 +22,9 @@ RUN rpm-ostree install \
 	https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm
 
 # install software/hardware codecs
-RUN rpm-ostree override remove \
-	mesa-va-drivers \
-	libavcodec-free \
-	libavfilter-free \
-	libavformat-free \
-	libavutil-free \
-	libpostproc-free \
-	libswresample-free \
-	libswscale-free && \
-	rpm-ostree install \
-	mesa-va-drivers-freeworld \
-	mesa-vdpau-drivers-freeworld \
-	gstreamer1-plugin-libav \
-	gstreamer1-plugins-bad-free-extras \
-	gstreamer1-plugins-bad-freeworld \
-	gstreamer1-plugins-ugly \
-	gstreamer1-vaapi \
-	ffmpeg
-
+RUN rpm-ostree override remove mesa-va-drivers --install mesa-va-drivers-freeworld
+RUN rpm-ostree install mesa-vdpau-drivers-freeworld
+RUN rpm-ostree install ffmpeg gstreamer1-plugin-libav gstreamer1-plugins-bad-free-extras gstreamer1-plugins-bad-freeworld gstreamer1-plugins-ugly gstreamer1-vaapi
 
 # install third party packages & repos
 COPY vscode.repo /etc/yum.repos.d/
